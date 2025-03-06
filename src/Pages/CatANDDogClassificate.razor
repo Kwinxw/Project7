@@ -1,0 +1,75 @@
+﻿@page "/classify-catanddog"
+
+<MudContainer>
+    <MudGrid>
+        <MudItem xs="12">
+            <MudText Typo="Typo.h5">Классификация фотографий кошек и собак)</MudText>
+        </MudItem>
+        <MudItem xs="12">
+            <MudText Typo="Typo.body1">Загрузите изображение одного из животных для классификации:</MudText>
+        </MudItem>
+        <MudItem xs="12">
+            <InputFile OnChange="HandleFileSelected" />
+        </MudItem>
+        <MudItem xs="12">
+            <MudButton OnClick="ClassifyImage" Disabled="!isImageSelected">Классифицировать</MudButton>
+        </MudItem>
+        <MudItem xs="12">
+            <MudText Typo="Typo.body1" Class="@(result.Contains("Некорректное изображение") ? "text-danger" : "")">@((MarkupString)result)</MudText>
+        </MudItem>
+    </MudGrid>
+</MudContainer>
+
+@code {
+    private string result = string.Empty;
+    private bool isImageSelected = false;
+    private byte[] imageBytes;
+
+    private async Task HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        var file = e.GetMultipleFiles(1).FirstOrDefault();
+        if (file != null)
+        {
+            using var stream = new MemoryStream();
+            await file.OpenReadStream().CopyToAsync(stream);
+            imageBytes = stream.ToArray();
+            isImageSelected = true;
+        }
+    }
+
+    private async Task ClassifyImage()
+    {
+        if (imageBytes == null)
+        {
+            result = "Пожалуйста, загрузите изображение.";
+            return;
+        }
+
+        var input = new BlazorApp1.CatANDDogClassifier.ModelInput
+            {
+                ImageSource = imageBytes
+            };
+
+        try
+        {
+            var prediction = CatANDDogClassifier.Predict(input);
+            var scores = CatANDDogClassifier.GetSortedScoresWithLabels(prediction);
+
+            var maxScore = scores.First().Value; 
+            if (maxScore < 0.8)
+            {
+                result = "Некорректное изображение";
+            }
+            else
+            {
+                result = string.Join("<br>", scores.Select(kvp => $"{kvp.Key}: {kvp.Value:F2}"));
+            }
+        }
+        catch (Exception ex)
+        {
+            result = "Ошибка при классификации: " + ex.Message;
+            Console.WriteLine($"Ошибка: {ex}");
+        }
+    }
+
+}
